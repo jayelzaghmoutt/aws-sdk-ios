@@ -176,11 +176,34 @@ extension AWSMobileClient {
         completionHandler(.signedIn, nil)
     }
 
-    private func performHostedUISuccessfulSignInTasks(disableFederation: Bool = false,
+    internal func performHostedUISuccessfulSignInTasks(disableFederation: Bool = false,
                                                        session: AWSCognitoAuthUserSession,
                                                        federationToken: String,
                                                        federationProviderIdentifier: String? = nil,
                                                        signInInfo: inout [String: String]) {
+        
+        if self.previousSession == nil {
+                    self.previousSession = HarriSession(authSession: session, username: self.username, signInInfo: signInInfo)
+                    
+                    self.currentSession = HarriSession(authSession: session, username: self.username, signInInfo: signInInfo)
+                } else {
+                    
+                    var newname = self.previousSession?.username
+                    
+                    if self.previousSession?.username == self.currentSession?.username {
+                        
+                        newname = self.username
+                    }
+                    
+                    self.previousSession = currentSession
+                    self.currentSession = HarriSession(authSession: session, username: newname, signInInfo: signInInfo)
+            
+                }
+                
+                if let currentSession {
+                    AWSCognitoAuth(forKey: AWSMobileClientConstants.CognitoAuthRegistrationKey).updateUsernameAndPersistTokens(currentSession.getAWSCognitoAuthUserSession())
+                }
+        
         federationDisabled = disableFederation
         if federationProviderIdentifier == nil {
             self.cachedLoginsMap = [self.userPoolClient!.identityProviderName: federationToken]
@@ -191,7 +214,7 @@ extension AWSMobileClient {
                                                additionalInfo: signInInfo)
     }
 
-    private func configureAndRegisterCognitoAuth(hostedUIOptions: HostedUIOptions,
+    internal func configureAndRegisterCognitoAuth(hostedUIOptions: HostedUIOptions,
                                                  _ completionHandler: @escaping(UserState?, Error?) -> Void) {
         loadOAuthURIQueryParametersFromKeychain()
 

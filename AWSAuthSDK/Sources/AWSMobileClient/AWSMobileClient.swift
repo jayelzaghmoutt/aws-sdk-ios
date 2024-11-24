@@ -15,6 +15,160 @@
 
 import Foundation
 
+public struct HarriSession: Codable {
+    
+    var idToken = HarriCognitoIdentityUserSessionToken()
+    var accessToken = HarriCognitoIdentityUserSessionToken()
+    var refreshToken = HarriCognitoIdentityUserSessionToken()
+    var expiryTime: Date?
+    var username: String?
+    var SSO: Bool = false
+    
+    var signInInfo: [String: String] = [:]
+    
+    init(authSession: AWSCognitoAuthUserSession, username: String?, signInInfo: [String: String]) {
+        
+        if let awsIdToken = authSession.idToken, let awsAccessToken = authSession.accessToken, let awsrefreshToken = authSession.refreshToken {
+         
+            self.idToken = HarriCognitoIdentityUserSessionToken(tokenString: awsIdToken.tokenString, tokenClaims: [:])
+            self.accessToken = HarriCognitoIdentityUserSessionToken(tokenString: awsAccessToken.tokenString, tokenClaims: [:])
+            self.refreshToken = HarriCognitoIdentityUserSessionToken(tokenString: awsrefreshToken.tokenString, tokenClaims: [:])
+
+            self.expiryTime = authSession.expirationTime
+            
+            self.username = username
+            
+            self.signInInfo = signInInfo
+            self.SSO = true
+        }
+    }
+    
+    init(session: AWSCognitoIdentityUserSession, username: String?) {
+        
+        if let awsIdToken = session.idToken, let awsAccessToken = session.accessToken, let awsrefreshToken = session.refreshToken {
+            
+            self.idToken = HarriCognitoIdentityUserSessionToken(tokenString: awsIdToken.tokenString, tokenClaims: awsIdToken.tokenClaims)
+            self.accessToken = HarriCognitoIdentityUserSessionToken(tokenString: awsAccessToken.tokenString, tokenClaims: awsAccessToken.tokenClaims)
+            self.refreshToken = HarriCognitoIdentityUserSessionToken(tokenString: awsrefreshToken.tokenString,tokenClaims: awsrefreshToken.tokenClaims)
+
+            self.expiryTime = session.expirationTime
+            
+            self.username = username
+        }
+    }
+    
+    public var getUserName: String? {
+        get {
+            self.username
+        }
+    }
+    
+    public var getIdToken: String {
+        get {
+            self.idToken.tokenString
+        }
+    }
+    
+    public var getAccessToken: String {
+        get {
+            self.accessToken.tokenString
+        }
+    }
+    
+    public var getRefreshToken: String {
+        get {
+            self.refreshToken.tokenString
+        }
+    }
+    
+    public var getExpiryDate: Date? {
+        get {
+            self.expiryTime
+        }
+    }
+    
+    func getAWSCognitoIdentityUserSession() -> AWSCognitoIdentityUserSession {
+        
+        let idToken = AWSCognitoIdentityUserSessionToken()
+        idToken.updateWithtokenString(self.idToken.tokenString, tokenClaims: self.idToken.tokenClaims)
+        
+        let accessToken = AWSCognitoIdentityUserSessionToken()
+        accessToken.updateWithtokenString(self.accessToken.tokenString, tokenClaims: self.accessToken.tokenClaims)
+        
+        let refreshToken = AWSCognitoIdentityUserSessionToken()
+        refreshToken.updateWithtokenString(self.refreshToken.tokenString, tokenClaims: self.refreshToken.tokenClaims)
+        
+        
+        let userSession = AWSCognitoIdentityUserSession()
+        userSession.update(withIdToken: idToken, accessToken: accessToken, refreshToken: refreshToken, expirationTime: self.expiryTime)
+        
+        return userSession
+    }
+    
+    func getAWSCognitoAuthUserSession() -> AWSCognitoAuthUserSession {
+     
+        let idToken = AWSCognitoAuthUserSessionToken()
+        idToken.updateWithtokenString(self.idToken.tokenString, tokenClaims: self.idToken.tokenClaims)
+        
+        let accessToken = AWSCognitoAuthUserSessionToken()
+        accessToken.updateWithtokenString(self.accessToken.tokenString, tokenClaims: self.accessToken.tokenClaims)
+        
+        let refreshToken = AWSCognitoAuthUserSessionToken()
+        refreshToken.updateWithtokenString(self.refreshToken.tokenString, tokenClaims: self.refreshToken.tokenClaims)
+        
+        
+        let authSession = AWSCognitoAuthUserSession()
+        authSession.update(withIdToken: idToken, accessToken: accessToken, refreshToken: refreshToken, expirationTime: self.expiryTime)
+        
+        return authSession
+    }
+}
+
+struct HarriCognitoIdentityUserSessionToken: Codable {
+    var tokenString = ""
+    var tokenClaims: [String: Any] = [:]
+    
+    init() {
+        tokenString = ""
+        tokenClaims = [:]
+    }
+    
+    init(tokenString: String, tokenClaims: [String: Any]) {
+        
+        self.tokenString = tokenString
+        self.tokenClaims = tokenClaims
+    }
+    
+    init(from decoder: Decoder) throws {
+        self.init()
+        
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        
+        if let value = try? values.decodeIfPresent(String.self, forKey: CodingKeys.tokenString){
+            self.tokenString = value
+        }
+        
+        // to get the claims and token claims
+        
+        
+    }
+    
+    /**
+     Encoder
+     */
+    func encode(to encoder: Encoder) throws  {
+        
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.tokenString, forKey: .tokenString)
+    }
+    
+    enum CodingKeys: CodingKey {
+        case tokenString
+        case claims
+        case tokenClaims
+    }
+}
+
 /// `AWSMobileClient` is used for all auth related operations when your app is accessing AWS backend.
 final public class AWSMobileClient: _AWSMobileClient {
     
@@ -48,6 +202,91 @@ final public class AWSMobileClient: _AWSMobileClient {
 
     internal static func missingCurrentActiveUser() -> AWSMobileClientError {
         return AWSMobileClientError.notSignedIn(message: AWSMobileClientConstants.notSignedInMessage)
+    }
+    
+    
+    public var previousSession: HarriSession?
+    public var currentSession: HarriSession?
+    
+    public func updateCachedData(name: String?, idToken: String, refreshToken: String, accessToken: String, expiryDate: Date?) {
+        
+        self.userpoolOpsHelper?.currentActiveUser?.setName(name)
+        
+        if let name {
+            // set current user in the key chain
+            self.userpoolOpsHelper?.userpoolClient?.setCurrentUser(name)
+            
+        }
+        
+        self.userpoolOpsHelper?.currentActiveUser?.updateInKeyChanin(withIdToken: idToken, accessToken: accessToken, refreshToken: refreshToken, expirationTime: expiryDate)
+    }
+    
+    public func swapSessions() {
+        
+        self.clearCurrentCredintials()
+        
+        if let previousSession {
+            
+            if previousSession.SSO {
+                
+                self.swapToAuthSession()
+            } else {
+                self.swapToUserSession()
+            }
+        }
+    }
+    
+    
+    private func swapToUserSession() {
+        
+        if let previousSession {
+            self.internalCredentialsProvider?.clearCredentials()
+            self.federationProvider = .userPools
+            self.performUserPoolSuccessfulSignInTasks(session: previousSession.getAWSCognitoIdentityUserSession())
+            let tokenString = currentSession!.getAWSCognitoIdentityUserSession().idToken!.tokenString
+            self.mobileClientStatusChanged(
+                userState: .signedIn,
+                additionalInfo: [
+                    AWSMobileClientConstants.ProviderKey:self.userPoolClient!.identityProviderName,
+                    AWSMobileClientConstants.TokenKey:tokenString])
+            self.invokeSignInCallback(signResult: SignInResult(signInState: .signedIn), error: nil)
+        }
+    }
+    
+    private func swapToAuthSession() {
+        
+        if let previousSession {
+            var signInInfo = previousSession.signInInfo
+            
+            let hostedUIOptions = HostedUIOptions(disableFederation: false, scopes: ["profile","openid", "email"], identityProvider: signInInfo["identityProvider"], idpIdentifier: nil, federationProviderName: nil, signInURIQueryParameters: nil, tokenURIQueryParameters: nil, signOutURIQueryParameters: nil, signInPrivateSession: true)
+            
+            
+            self.scopes = hostedUIOptions.scopes
+            
+            self.saveHostedUIOptionsScopesInKeychain()
+            
+            let session = previousSession.getAWSCognitoAuthUserSession()
+            
+            var federationToken: String = ""
+            if let idToken = session.idToken?.tokenString {
+                federationToken = idToken
+            } else if let accessToken = session.accessToken?.tokenString {
+                federationToken = accessToken
+            }
+            
+            self.performHostedUISuccessfulSignInTasks(disableFederation: hostedUIOptions.disableFederation, session: session, federationToken: federationToken, federationProviderIdentifier: hostedUIOptions.federationProviderName, signInInfo: &signInInfo)
+            self.mobileClientStatusChanged(userState: .signedIn, additionalInfo: signInInfo)
+            
+            configureAndRegisterCognitoAuth(hostedUIOptions: hostedUIOptions, {_,_ in })
+        }
+    }
+    
+    public func clearCurrentCredintials() {
+        self.internalCredentialsProvider?.clearCredentials()
+        self.cachedLoginsMap = [:]
+        self.saveLoginsMapInKeychain()
+        self.internalCredentialsProvider?.clearKeychain()
+        self.currentUserState = .signedOut
     }
 
     // MARK: Execution Helpers (DispatchQueue, OperationQueue, DispatchGroup)

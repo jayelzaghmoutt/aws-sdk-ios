@@ -33,6 +33,52 @@ static const NSString * AWSCognitoIdentityUserDeviceSecret = @"device.secret";
 static const NSString * AWSCognitoIdentityUserDeviceGroup = @"device.group";
 static const NSString * AWSCognitoIdentityUserUserAttributePrefix = @"userAttributes.";
 
+- (void) setName:(NSString * _Nullable)name {
+    
+    self.username = name;
+}
+
+-(NSDateFormatter *) getDateFormatter {
+    static NSDateFormatter *_dateFormatter = nil;
+
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        _dateFormatter = [NSDateFormatter new];
+        _dateFormatter.timeZone = [NSTimeZone timeZoneWithName:@"GMT"];
+        _dateFormatter.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+        _dateFormatter.dateFormat = @"yyyy-MM-dd'T'HH:mm:ss'Z'";
+    });
+    return _dateFormatter;
+}
+
+/**
+ Convert a string to date
+ */
+-(NSString *) stringValue: (NSDate*) date {
+    return [[self getDateFormatter] stringFromDate:date];
+}
+
+
+-(void) updateInKeyChaninWithIdToken:(NSString *)idToken accessToken:(NSString *)accessToken refreshToken:(NSString *)refreshToken expirationTime:(NSDate * _Nullable) expirationTime {
+    
+    __block NSString * keyChainNamespace = [self keyChainNamespaceClientId];
+    
+    NSString * expirationTokenKey = [self keyChainKey:keyChainNamespace key:AWSCognitoIdentityUserTokenExpiration];
+    self.pool.keychain[expirationTokenKey] = [self stringValue: expirationTime];
+    
+
+    // set refresh token to keychain
+    NSString * refreshTokenKey = [self keyChainKey:keyChainNamespace key:AWSCognitoIdentityUserRefreshToken];
+    self.pool.keychain[refreshTokenKey] = refreshToken;
+    
+    // set access and id tokens
+    NSString * accessTokenKey = [self keyChainKey:keyChainNamespace key:AWSCognitoIdentityUserAccessToken];
+    NSString * idTokenKey = [self keyChainKey:keyChainNamespace key:AWSCognitoIdentityUserIdToken];
+        
+    self.pool.keychain[idTokenKey] = idToken;
+    self.pool.keychain[accessTokenKey] = accessToken;
+}
+
 -(instancetype) initWithUsername: (NSString *)username pool:(AWSCognitoIdentityUserPool *)pool {
     self = [super init];
     if(self != nil) {
@@ -1732,9 +1778,27 @@ static const NSString * AWSCognitoIdentityUserUserAttributePrefix = @"userAttrib
     }
     return self;
 }
+
+-(void) updateWithIdToken:(AWSCognitoIdentityUserSessionToken *)idToken accessToken:(AWSCognitoIdentityUserSessionToken *)accessToken refreshToken:(AWSCognitoIdentityUserSessionToken *)refreshToken expirationTime:(NSDate * _Nullable) expirationTime {
+    
+    self.idToken = idToken;
+    self.accessToken = accessToken;
+    self.refreshToken = refreshToken;
+    self.expirationTime = expirationTime;
+}
+
 @end
 
 @implementation AWSCognitoIdentityUserSessionToken
+
+@synthesize tokenString;
+@synthesize tokenClaims = _tokenClaims;
+
+-(void) updateWithtokenString:(NSString *)tokenString tokenClaims:(NSDictionary<NSString *, id> *)tokenClaims {
+    
+    self.tokenString = tokenString;
+    _tokenClaims = tokenClaims;
+}
 
 -(instancetype) initWithToken:(NSString *)token {
     if(token == nil){

@@ -1218,6 +1218,13 @@ withPresentingViewController:(UIViewController *)presentingViewController {
     return self;
 }
 
+-(void) updateWithIdToken:(AWSCognitoAuthUserSessionToken *)idToken accessToken:(AWSCognitoAuthUserSessionToken *)accessToken refreshToken:(AWSCognitoAuthUserSessionToken *)refreshToken expirationTime:(NSDate * _Nullable) expirationTime {
+    
+    self.idToken = idToken;
+    self.accessToken = accessToken;
+    self.refreshToken = refreshToken;
+    self.expirationTime = expirationTime;
+}
 
 -(NSString *) username {
     return self.accessToken.claims[@"username"] ? self.accessToken.claims[@"username"] : self.accessToken.claims[@"sub"];
@@ -1237,6 +1244,12 @@ withPresentingViewController:(UIViewController *)presentingViewController {
         self.tokenString = token;
     }
     return self;
+}
+
+-(void) updateWithtokenString:(NSString *)tokenString tokenClaims:(NSDictionary<NSString *, id> *)tokenClaims {
+    
+    self.tokenString = tokenString;
+    //_tokenClaims = tokenClaims;
 }
 
 -(NSDictionary *) claims {

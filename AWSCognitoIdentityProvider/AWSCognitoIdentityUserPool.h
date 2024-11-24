@@ -78,6 +78,7 @@ NS_ASSUME_NONNULL_BEGIN
                                                  userAttributes:(nullable NSArray<AWSCognitoIdentityUserAttributeType *> *)userAttributes
                                                  validationData:(nullable NSArray<AWSCognitoIdentityUserAttributeType *> *)validationData;
 
+- (void) setCurrentUser:(NSString *) username;
 
 /**
  Return the user who last authenticated.  Username may be nil if current user is unknown.

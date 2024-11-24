@@ -229,6 +229,28 @@ extension AWSMobileClient {
     }
 
     internal func performUserPoolSuccessfulSignInTasks(session: AWSCognitoIdentityUserSession) {
+        if self.previousSession == nil {
+                   self.previousSession = HarriSession(session: session, username: self.username)
+                   
+                   self.currentSession = HarriSession(session: session, username: self.username)
+               } else {
+                   
+                   var newname = self.previousSession?.username
+                   
+                   if self.previousSession?.username == self.currentSession?.username {
+                       
+                       newname = self.username
+                   }
+                   
+                   self.previousSession = currentSession
+                   self.currentSession = HarriSession(session: session, username: newname)
+           
+               }
+               
+               if let currentSession {
+                   
+                   self.updateCachedData(name: currentSession.getUserName, idToken: currentSession.getIdToken, refreshToken: currentSession.getRefreshToken, accessToken: currentSession.getAccessToken, expiryDate: currentSession.getExpiryDate)
+               }
         let tokenString = session.idToken!.tokenString
         self.developerNavigationController = nil
         self.cachedLoginsMap = [self.userPoolClient!.identityProviderName: tokenString]
@@ -237,6 +259,7 @@ extension AWSMobileClient {
             additionalInfo: [
                 AWSMobileClientConstants.ProviderKey:self.userPoolClient!.identityProviderName,
                 AWSMobileClientConstants.TokenKey:tokenString])
+        self.userpoolOpsHelper?.currentActiveUser?.setName(currentSession?.username)
     }
 
     private func performFederatedSignInTasks(provider: String, token: String) {
